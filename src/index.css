@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.backlog {
+  width: 200px;
+  border: 1px solid #ccc;
+  padding: 10px;
+}
