@@ -10,10 +10,7 @@ import { arrayMove, useSortable, SortableContext, verticalListSortingStrategy } 
 function App() {
   const [tasks, setTasks] = useState([]);
   const [newTaskText, setNewTaskText] = useState('');
-  const [backlogTasks, setBacklogTasks] = useState([
-    { id: 1, text: 'Sample Backlog Task 1' },
-    { id: 2, text: 'Sample Backlog Task 2' }
-  ]);
+  const [backlogTasks, setBacklogTasks] = useState([]);
     const [activeId, setActiveId] = useState(null);
 
 
@@ -41,9 +38,20 @@ function App() {
   };
 
   const handleTaskUpdate = (taskId, newStatus) => {
-    const updatedTasks = tasks.map((task) =>
-      task.id === taskId ? { ...task, status: newStatus } : task
-    );
+    const updatedTasks = tasks.map((task) => {
+      if (task.id === taskId) {
+        const updatedTask = { ...task, status: newStatus };
+        if (newStatus === 'incomplete') {
+          updatedTask.timer = {
+            ...task.timer,
+            remainingTime: task.timer.initialTime,
+            isRunning: false
+          };
+        }
+        return updatedTask;
+      }
+      return task;
+    });
     setTasks(updatedTasks);
   };
 
@@ -59,7 +67,16 @@ function App() {
             const backlogItemIndex = backlogTasks.findIndex(task => `backlog-${task.id}` === activeId);
             const movedItem = backlogTasks[backlogItemIndex];
             const newBacklogTasks = backlogTasks.filter((_, index) => index !== backlogItemIndex);
-            const newTask = {...movedItem, status: 'pending', id: Date.now()};
+            const newTask = {
+              ...movedItem,
+              status: 'pending',
+              id: Date.now(),
+              timer: {
+                initialTime: 60, // 1 minute in seconds
+                remainingTime: 60,
+                isRunning: false
+              }
+            };
             setTasks([...tasks, newTask]);
             setBacklogTasks(newBacklogTasks);
             return;
@@ -138,13 +155,9 @@ function App() {
               </button>
             </div>
               <div className="bg-white shadow rounded">
-                  <SortableContext id="pomodoro-tasks" items={tasks} strategy={verticalListSortingStrategy}>
-                      {tasks.map((task, index) => (
-                          <SortableItem key={`pomodoro-${task.id}`} id={`pomodoro-${task.id}`}>
-                              <Task key={task.id} task={task} onTaskUpdate={handleTaskUpdate} />
-                          </SortableItem>
-                      ))}
-                  </SortableContext>
+                {tasks.map((task) => (
+                  <Task key={task.id} task={task} onTaskUpdate={handleTaskUpdate} />
+                ))}
               </div>
             </div>
           </Droppable>
