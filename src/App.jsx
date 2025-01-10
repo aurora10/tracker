@@ -13,7 +13,6 @@ function App() {
   const [backlogTasks, setBacklogTasks] = useState([]);
   const [activeId, setActiveId] = useState(null);
 
-
   useEffect(() => {
     try {
       const storedTasks = localStorage.getItem('tasks');
@@ -33,12 +32,6 @@ function App() {
     }
   }, [tasks]);
 
-  // State Management Functions
-
-  /**
-   * Adds a new task to the task list
-   * @returns {void}
-   */
   const handleAddTask = () => {
     if (newTaskText.trim()) {
       const newTask = {
@@ -51,36 +44,28 @@ function App() {
     }
   };
 
-  /**
-   * Updates the status of a specific task
-   * @param {number} taskId - ID of the task to update
-   * @param {string} newStatus - New status to set for the task
-   * @returns {void}
-   */
   const handleTaskUpdate = (taskId, newStatus) => {
-    const updatedTasks = tasks.map((task) => {
-      if (task.id === taskId) {
-        const updatedTask = { ...task, status: newStatus };
-        if (newStatus === 'incomplete') {
-          updatedTask.timer = {
-            ...task.timer,
-            remainingTime: task.timer.initialTime,
-            isRunning: false
-          };
+    if (newStatus === 'delete') {
+      setTasks(tasks.filter(task => task.id !== taskId));
+    } else {
+      const updatedTasks = tasks.map((task) => {
+        if (task.id === taskId) {
+          const updatedTask = { ...task, status: newStatus };
+          if (newStatus === 'incomplete') {
+            updatedTask.timer = {
+              ...task.timer,
+              remainingTime: task.timer.initialTime,
+              isRunning: false
+            };
+          }
+          return updatedTask;
         }
-        return updatedTask;
-      }
-      return task;
-    });
-    setTasks(updatedTasks);
+        return task;
+      });
+      setTasks(updatedTasks);
+    }
   };
 
-  /**
-   * Handles moving a task from backlog to pomodoro section
-   * @param {string} activeId - ID of the dragged item
-   * @param {Object} movedItem - The task being moved
-   * @returns {Object} - New task object
-   */
   const createPomodoroTaskFromBacklog = (movedItem) => ({
     ...movedItem,
     status: 'pending',
@@ -92,13 +77,6 @@ function App() {
     }
   });
 
-  /**
-   * Handles reordering tasks within the same section
-   * @param {Array} items - Array of tasks to reorder
-   * @param {string} activeId - ID of the dragged item
-   * @param {string} overId - ID of the target item
-   * @returns {Array} - Reordered array of tasks
-   */
   const reorderTasks = (items, activeId, overId) => {
     const oldIndex = items.findIndex(task => task.id === activeId);
     const newIndex = items.findIndex(task => task.id === overId);
@@ -112,112 +90,140 @@ function App() {
     const activeId = active.id.toString();
     const overId = over?.id?.toString();
 
-    // Handle dropping into empty Pomodoro section
+    // Handle moving from backlog to pomodoro
     if (activeId.startsWith('backlog-') && (!over || overId === 'pomodoro')) {
       const backlogItemIndex = backlogTasks.findIndex(task => `backlog-${task.id}` === activeId);
-      const movedItem = backlogTasks[backlogItemIndex];
-      const newBacklogTasks = backlogTasks.filter((_, index) => index !== backlogItemIndex);
-      const newTask = createPomodoroTaskFromBacklog(movedItem);
-      setTasks([...tasks, newTask]);
-      setBacklogTasks(newBacklogTasks);
+      if (backlogItemIndex !== -1) {
+        const movedItem = backlogTasks[backlogItemIndex];
+        const newBacklogTasks = backlogTasks.filter((_, index) => index !== backlogItemIndex);
+        const newTask = createPomodoroTaskFromBacklog(movedItem);
+        setTasks([...tasks, newTask]);
+        setBacklogTasks(newBacklogTasks);
+      }
       return;
     }
 
-    if (!over || active.id === over.id) {
+    if (!over || active.id === over.id || !overId) {
       return;
     }
 
+    // Handle reordering within backlog
     if (activeId.startsWith('backlog-') && overId.startsWith('backlog-')) {
       setBacklogTasks(reorderTasks(backlogTasks, activeId, overId));
-    } else if (activeId.startsWith('pomodoro-') && overId.startsWith('pomodoro-')) {
+      return;
+    }
+
+    // Handle reordering within pomodoro
+    if (activeId.startsWith('pomodoro-') && overId.startsWith('pomodoro-')) {
       setTasks(reorderTasks(tasks, activeId, overId));
-    } else if (activeId.startsWith('backlog-') && overId.startsWith('pomodoro-')) {
+      return;
+    }
+
+    // Handle moving from backlog to specific pomodoro task
+    if (activeId.startsWith('backlog-') && overId.startsWith('pomodoro-')) {
       const backlogItemIndex = backlogTasks.findIndex(task => `backlog-${task.id}` === activeId);
-      const movedItem = backlogTasks[backlogItemIndex];
-      const newBacklogTasks = backlogTasks.filter((_, index) => index !== backlogItemIndex);
-      const newTask = { ...movedItem, status: 'pending', id: Date.now() };
-      setTasks([...tasks, newTask]);
-      setBacklogTasks(newBacklogTasks);
-    } else if (activeId.startsWith('pomodoro-') && overId.startsWith('backlog-')) {
+      if (backlogItemIndex !== -1) {
+        const movedItem = backlogTasks[backlogItemIndex];
+        const newBacklogTasks = backlogTasks.filter((_, index) => index !== backlogItemIndex);
+        const newTask = createPomodoroTaskFromBacklog(movedItem);
+        
+        // Find the target position in pomodoro list
+        const targetIndex = tasks.findIndex(task => `pomodoro-${task.id}` === overId);
+        const newTasks = [...tasks];
+        newTasks.splice(targetIndex, 0, newTask);
+        
+        setTasks(newTasks);
+        setBacklogTasks(newBacklogTasks);
+      }
+      return;
+    }
+
+    // Handle moving from pomodoro to backlog
+    if (activeId.startsWith('pomodoro-') && overId.startsWith('backlog-')) {
       const pomodoroItemIndex = tasks.findIndex(task => `pomodoro-${task.id}` === activeId);
-      const movedItem = tasks[pomodoroItemIndex];
-      const newTasks = tasks.filter((_, index) => index !== pomodoroItemIndex);
-      const backlogItemIndex = backlogTasks.findIndex(task => `backlog-${task.id}` === overId);
-      const newBacklogTasks = [...backlogTasks];
-      newBacklogTasks.splice(backlogItemIndex, 0, { ...movedItem, id: Date.now() });
-      setBacklogTasks(newBacklogTasks);
-      setTasks(newTasks);
+      if (pomodoroItemIndex !== -1) {
+        const movedItem = tasks[pomodoroItemIndex];
+        const newTasks = tasks.filter((_, index) => index !== pomodoroItemIndex);
+        
+        // Find the target position in backlog
+        const backlogItemIndex = backlogTasks.findIndex(task => `backlog-${task.id}` === overId);
+        const newBacklogTasks = [...backlogTasks];
+        newBacklogTasks.splice(backlogItemIndex, 0, { 
+          ...movedItem, 
+          id: Date.now(),
+          status: 'backlog'
+        });
+        
+        setBacklogTasks(newBacklogTasks);
+        setTasks(newTasks);
+      }
+      return;
     }
   };
 
-  // Drag and Drop Functions
-
-  /**
-   * Handles the start of a drag operation
-   * @param {Object} event - Drag event object
-   * @returns {void}
-   */
   const handleDragStart = (event) => {
     setActiveId(event.active.id);
   }
-
 
   return (
     <DndContext 
       onDragEnd={handleDragEnd} 
       onDragStart={handleDragStart}
       collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
     >
-      <div className="container mx-auto p-4 flex flex-col">
-        <div className="flex border p-4 mb-4">
-          <Backlog 
-            tasks={backlogTasks}
-            onAddTask={(text) => {
-              const newTask = {
-                id: Date.now(),
-                text: text,
-              };
-              setBacklogTasks([...backlogTasks, newTask]);
-            }}
-          />
-        </div>
-        <div className="flex border p-4">
-          <Droppable id="pomodoro">
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold mb-4">Pomodoro To-Do</h1>
-              <div className="flex mb-4">
-                <input
-                  type="text"
-                  className="border p-2 mr-2 flex-1"
-                  placeholder="Add a new task"
-                  value={newTaskText}
-                  onChange={(e) => setNewTaskText(e.target.value)}
-                />
-                <button 
-                  onClick={handleAddTask} 
-                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                >
-                  <PlusIcon className="h-5 w-5 inline-block align-middle" />
-                </button>
-              </div>
-              <div className="bg-white shadow rounded">
-                {tasks.map((task) => (
-                  <Task key={task.id} task={task} onTaskUpdate={handleTaskUpdate} />
-                ))}
-              </div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex gap-8">
+            <div className="w-1/2 bg-white rounded-xl shadow-lg p-6">
+              <Backlog 
+                tasks={backlogTasks}
+                onAddTask={(text) => {
+                  const newTask = {
+                    id: Date.now(),
+                    text: text,
+                  };
+                  setBacklogTasks([...backlogTasks, newTask]);
+                }}
+              />
             </div>
-          </Droppable>
+            
+            <div className="w-1/2 bg-white rounded-xl shadow-lg p-6">
+              <Droppable id="pomodoro">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-800 mb-6">Pomodoro To-Do</h1>
+                  <div className="flex gap-2 mb-6">
+                    <input
+                      type="text"
+                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      placeholder="Add a new task"
+                      value={newTaskText}
+                      onChange={(e) => setNewTaskText(e.target.value)}
+                    />
+                    <button 
+                      onClick={handleAddTask} 
+                      className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                      <PlusIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {tasks.map((task) => (
+                      <Task key={task.id} task={task} onTaskUpdate={handleTaskUpdate} />
+                    ))}
+                  </div>
+                </div>
+              </Droppable>
+            </div>
+          </div>
         </div>
         <DragOverlay>
           {activeId ? (
-            <div className="bg-gray-100 p-2 mb-2 rounded">{activeId.split('-')[1]}</div>
+            <div className="bg-white p-4 rounded-lg shadow-lg">{activeId.split('-')[1]}</div>
           ) : null}
         </DragOverlay>
       </div>
     </DndContext>
   );
 }
-
 
 export default App;
