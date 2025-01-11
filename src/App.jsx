@@ -71,8 +71,8 @@ function App() {
     status: 'pending',
     id: Date.now(),
     timer: {
-      initialTime: 60,
-      remainingTime: 60,
+      initialTime: 1500,
+      remainingTime: 1500,
       isRunning: false
     }
   });

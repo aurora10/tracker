@@ -1,40 +1,62 @@
-import React, { useState, useEffect } from 'react';
+import React, { useReducer, useEffect, useRef, useState } from 'react';
 import { PlayIcon, PauseIcon, ArrowPathIcon, CheckIcon, CircleStackIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import Modal from './Modal';
+import alarmSound from '../assets/alarm.mp3';
 
 function Task({ task, onTaskUpdate }) {
-  const [time, setTime] = useState(task.timer?.remainingTime || 60);
-  const [isRunning, setIsRunning] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [intervalId, setIntervalId] = useState(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [endTime, setEndTime] = useState(null);
+  const [initialTime, setInitialTime] = useState(task.timer?.remainingTime || 1500);
+  const [remainingTime, setRemainingTime] = useState(task.timer?.remainingTime || 1500);
 
   useEffect(() => {
-    if (time === 0 && isRunning) {
-      setShowModal(true);
-      setIsRunning(false);
-      clearInterval(intervalId);
+    let interval;
+    if (isRunning) {
+      interval = setInterval(() => {
+        const now = Date.now();
+        const timeLeft = Math.max(0, Math.floor((endTime - now) / 1000));
+        setRemainingTime(timeLeft);
+        if (timeLeft === 0) {
+          setIsRunning(false);
+          setShowModal(true);
+        }
+      }, 200);
     }
-  }, [time, isRunning]);
+    return () => clearInterval(interval);
+  }, [isRunning, endTime]);
 
   const startTimer = () => {
-    if (!isRunning) {
-      setIsRunning(true);
-      const id = setInterval(() => {
-        setTime(prev => prev - 1);
-      }, 1000);
-      setIntervalId(id);
-    }
+    const now = Date.now();
+    setEndTime(now + remainingTime * 1000);
+    setIsRunning(true);
   };
 
   const stopTimer = () => {
     setIsRunning(false);
-    clearInterval(intervalId);
   };
 
   const resetTimer = () => {
-    setTime(task.timer?.initialTime || 60);
-    stopTimer();
+    setIsRunning(false);
+    setRemainingTime(initialTime);
   };
+
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    audioRef.current = new Audio(alarmSound);
+    return () => {
+      audioRef.current.pause();
+      audioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (remainingTime === 0 && !isRunning) {
+      setShowModal(true);
+      audioRef.current.play();
+    }
+  }, [remainingTime, isRunning]);
 
   const handleModalConfirm = () => {
     onTaskUpdate(task.id, 'completed');
@@ -87,11 +109,17 @@ function Task({ task, onTaskUpdate }) {
             )}
             <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full">
               <span className="text-sm font-medium text-gray-700">
-                {formatTime(time)}
+                {formatTime(remainingTime)}
               </span>
               <div className="flex gap-1">
                 <button 
-                  onClick={isRunning ? stopTimer : startTimer} 
+                  onClick={() => {
+                    if (isRunning) {
+                      stopTimer();
+                    } else {
+                      startTimer();
+                    }
+                  }}
                   className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
                 >
                   {isRunning ? (
@@ -101,7 +129,10 @@ function Task({ task, onTaskUpdate }) {
                   )}
                 </button>
                 <button 
-                  onClick={resetTimer}
+                  onClick={() => {
+                    setInitialTime(task.timer?.initialTime || 1500);
+                    resetTimer();
+                  }}
                   className="p-1 text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   <ArrowPathIcon className="h-5 w-5" />
