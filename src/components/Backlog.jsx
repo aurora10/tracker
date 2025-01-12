@@ -13,7 +13,7 @@ function Backlog({ tasks, onAddTask }) {
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm">
-      <h2 className="text-xl font-semibold text-gray-800 mb-4">Backlog</h2>
+      <h2 className="text-2xl font-semibold text-gray-800 mb-4">Backlog Tasks</h2>
       <div className="flex gap-2 mb-6">
         <input
           type="text"
