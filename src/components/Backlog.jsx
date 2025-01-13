@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { GradientButton } from './ui/gradient-button';
+import { GradientText } from './ui/gradient-text';
+import { PlusIcon } from '@heroicons/react/24/solid';
 
 function Backlog({ tasks, onAddTask }) {
   const [newTaskText, setNewTaskText] = useState('');
@@ -13,7 +16,12 @@ function Backlog({ tasks, onAddTask }) {
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-4">Backlog Tasks</h2>
+      <GradientText
+        colors={["#ffaa40", "#9c40ff", "#ffaa40"]}
+        className="text-2xl font-semibold mb-4"
+      >
+        Backlog Tasks
+      </GradientText>
       <div className="flex gap-2 mb-6">
         <input
           type="text"
@@ -23,12 +31,13 @@ function Backlog({ tasks, onAddTask }) {
           onChange={(e) => setNewTaskText(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleAddTask()}
         />
-        <button 
-          onClick={handleAddTask} 
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-        >
-          Add
-        </button>
+                    <GradientButton 
+                      variant="variant"
+                      onClick={handleAddTask}
+                      className="flex items-center justify-center min-w-[132px] px-4 py-2"
+                    >
+                      <PlusIcon className="h-5 w-5" />
+                    </GradientButton>
       </div>
       <SortableContext id="backlog-tasks" items={tasks} strategy={verticalListSortingStrategy}>
         <ul className="space-y-2">

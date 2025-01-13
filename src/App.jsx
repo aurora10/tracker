@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { GradientButton } from './components/ui/gradient-button';
+import { GradientText } from './components/ui/gradient-text';
 import Task from './components/Task';
 import Backlog from './components/Backlog';
 import { PlusIcon } from '@heroicons/react/24/solid';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import Droppable from './components/Droppable';
 import { arrayMove } from '@dnd-kit/sortable';
 
@@ -190,7 +191,12 @@ function App() {
             <div className="w-1/2 bg-white rounded-xl shadow-lg p-6">
               <Droppable id="pomodoro">
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-800 mb-6">Pomodoro To-Do</h1>
+                  <GradientText
+                    colors={["#40aaff", "#ff40aa", "#40aaff"]}
+                    className="text-2xl font-bold mb-6"
+                  >
+                    Pomodoro To-Do
+                  </GradientText>
                   <div className="flex gap-2 mb-6">
                     <input
                       type="text"
@@ -199,12 +205,12 @@ function App() {
                       value={newTaskText}
                       onChange={(e) => setNewTaskText(e.target.value)}
                     />
-                    <button 
-                      onClick={handleAddTask} 
-                      className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                    <GradientButton 
+                      onClick={handleAddTask}
+                      className="flex items-center justify-center px-4 py-2"
                     >
                       <PlusIcon className="h-5 w-5" />
-                    </button>
+                    </GradientButton>
                   </div>
                   <div className="space-y-2">
                     {tasks.map((task) => (
@@ -218,7 +224,10 @@ function App() {
         </div>
         <DragOverlay>
           {activeId ? (
-            <div className="bg-white p-4 rounded-lg shadow-lg">{activeId.split('-')[1]}</div>
+            <div className="bg-white p-4 rounded-lg shadow-lg">
+              {tasks.find(t => `pomodoro-${t.id}` === activeId)?.text ||
+               backlogTasks.find(t => `backlog-${t.id}` === activeId)?.text}
+            </div>
           ) : null}
         </DragOverlay>
       </div>
