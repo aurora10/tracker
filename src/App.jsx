@@ -174,8 +174,8 @@ function App() {
     >
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 md:p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row gap-4 md:gap-8">
-            <div className="w-full md:w-1/2 bg-white rounded-xl shadow-lg p-4 sm:p-6">
+          <div className="flex flex-col lg2:flex-row gap-4 lg2:gap-8">
+            <div className="w-full lg2:w-1/2 bg-white rounded-xl shadow-lg p-4 lg2:p-6">
               <Backlog 
                 tasks={backlogTasks}
                 onAddTask={(text) => {
@@ -188,7 +188,7 @@ function App() {
               />
             </div>
             
-            <div className="w-full md:w-1/2 bg-white rounded-xl shadow-lg p-4 sm:p-6 mt-4 md:mt-0">
+            <div className="w-full lg2:w-1/2 bg-white rounded-xl shadow-lg p-4 lg2:p-6 mt-4 lg2:mt-0">
               <Droppable id="pomodoro">
                 <div>
                   <GradientText
