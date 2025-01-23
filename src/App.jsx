@@ -172,10 +172,10 @@ function App() {
       onDragStart={handleDragStart}
       collisionDetection={closestCenter}
     >
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 md:p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex gap-8">
-            <div className="w-1/2 bg-white rounded-xl shadow-lg p-6">
+          <div className="flex flex-col md:flex-row gap-4 md:gap-8">
+            <div className="w-full md:w-1/2 bg-white rounded-xl shadow-lg p-4 sm:p-6">
               <Backlog 
                 tasks={backlogTasks}
                 onAddTask={(text) => {
@@ -188,26 +188,26 @@ function App() {
               />
             </div>
             
-            <div className="w-1/2 bg-white rounded-xl shadow-lg p-6">
+            <div className="w-full md:w-1/2 bg-white rounded-xl shadow-lg p-4 sm:p-6 mt-4 md:mt-0">
               <Droppable id="pomodoro">
                 <div>
                   <GradientText
                     colors={["#40aaff", "#ff40aa", "#40aaff"]}
-                    className="text-2xl font-bold mb-6"
+                    className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6"
                   >
                     Pomodoro To-Do
                   </GradientText>
-                  <div className="flex gap-2 mb-6">
+                  <div className="flex flex-col sm:flex-row gap-2 mb-4 sm:mb-6">
                     <input
                       type="text"
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className="w-full px-3 sm:px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       placeholder="Add a new task"
                       value={newTaskText}
                       onChange={(e) => setNewTaskText(e.target.value)}
                     />
                     <GradientButton 
                       onClick={handleAddTask}
-                      className="flex items-center justify-center px-4 py-2"
+                      className="flex items-center justify-center px-3 sm:px-4 py-2 mt-2 sm:mt-0"
                     >
                       <PlusIcon className="h-5 w-5" />
                     </GradientButton>
