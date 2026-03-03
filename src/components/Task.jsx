@@ -5,12 +5,31 @@ import { CSS } from '@dnd-kit/utilities';
 import Modal from './Modal';
 import alarmSound from '../assets/alarm.mp3';
 
-function Task({ task, onTaskUpdate }) {
+function Task({ task, onTaskUpdate, onTimerUpdate }) {
   const [showModal, setShowModal] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
+  const [isRunning, setIsRunning] = useState(task.timer?.isRunning || false);
   const [endTime, setEndTime] = useState(null);
-  const [initialTime, setInitialTime] = useState(task.timer?.remainingTime || 1500);
+  const [initialTime, setInitialTime] = useState(task.timer?.initialTime || 1500);
   const [remainingTime, setRemainingTime] = useState(task.timer?.remainingTime || 1500);
+
+  // Sync with prop updates from other tabs
+  useEffect(() => {
+    if (task.timer) {
+      // Only update if the running state changed or if the time is significantly different (e.g., reset)
+      // This prevents minor local timer increments from being overwritten by slightly delayed DB values
+      const timeDiff = Math.abs(task.timer.remainingTime - remainingTime);
+
+      if (task.timer.isRunning !== isRunning || timeDiff > 2) {
+        setIsRunning(task.timer.isRunning);
+        setRemainingTime(task.timer.remainingTime);
+        setInitialTime(task.timer.initialTime);
+
+        if (task.timer.isRunning) {
+          setEndTime(Date.now() + task.timer.remainingTime * 1000);
+        }
+      }
+    }
+  }, [task.timer]);
 
   const {
     attributes,
@@ -45,17 +64,35 @@ function Task({ task, onTaskUpdate }) {
 
   const startTimer = () => {
     const now = Date.now();
-    setEndTime(now + remainingTime * 1000);
+    const newEndTime = now + remainingTime * 1000;
+    setEndTime(newEndTime);
     setIsRunning(true);
+    onTimerUpdate(task.id, {
+      ...task.timer,
+      isRunning: true,
+      remainingTime: remainingTime
+    });
   };
 
   const stopTimer = () => {
     setIsRunning(false);
+    onTimerUpdate(task.id, {
+      ...task.timer,
+      isRunning: false,
+      remainingTime: remainingTime
+    });
   };
 
   const resetTimer = () => {
     setIsRunning(false);
-    setRemainingTime(initialTime);
+    const resetTime = initialTime;
+    setRemainingTime(resetTime);
+    onTimerUpdate(task.id, {
+      ...task.timer,
+      isRunning: false,
+      remainingTime: resetTime,
+      initialTime: resetTime
+    });
   };
 
   const audioRef = useRef(null);
@@ -139,7 +176,8 @@ function Task({ task, onTaskUpdate }) {
               </span>
               <div className="flex gap-1">
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     if (isRunning) {
                       stopTimer();
                     } else {
@@ -155,8 +193,8 @@ function Task({ task, onTaskUpdate }) {
                   )}
                 </button>
                 <button
-                  onClick={() => {
-                    setInitialTime(task.timer?.initialTime || 1500);
+                  onClick={(e) => {
+                    e.stopPropagation();
                     resetTimer();
                   }}
                   className="p-1 text-gray-500 hover:text-gray-700 transition-colors"

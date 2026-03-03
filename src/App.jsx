@@ -110,6 +110,19 @@ function App() {
     }
   };
 
+  const handleTimerUpdate = async (taskId, timerState) => {
+    const { error } = await supabase
+      .from('tasks')
+      .update({ timer: timerState })
+      .eq('id', taskId);
+
+    if (error) {
+      console.error('Error updating timer:', error);
+    } else {
+      fetchTasks();
+    }
+  };
+
   const handleAddBacklogTask = async (text) => {
     console.log('Adding backlog task:', text);
     const newTask = {
@@ -241,7 +254,12 @@ function App() {
                   </div>
                   <SortableContext id="pomodoro-tasks" items={tasks.map(t => `pomodoro-${t.id}`)} strategy={verticalListSortingStrategy}>
                     {tasks.map((task) => (
-                      <Task key={task.id} task={task} onTaskUpdate={handleTaskUpdate} />
+                      <Task
+                        key={task.id}
+                        task={task}
+                        onTaskUpdate={handleTaskUpdate}
+                        onTimerUpdate={handleTimerUpdate}
+                      />
                     ))}
                   </SortableContext>
                 </div>
