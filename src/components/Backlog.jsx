@@ -31,15 +31,15 @@ function Backlog({ tasks, onAddTask }) {
           onChange={(e) => setNewTaskText(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleAddTask()}
         />
-                    <GradientButton 
-                      variant="variant"
-                      onClick={handleAddTask}
-                      className="flex items-center justify-center min-w-[132px] px-4 py-2"
-                    >
-                      <PlusIcon className="h-5 w-5" />
-                    </GradientButton>
+        <GradientButton
+          variant="variant"
+          onClick={handleAddTask}
+          className="flex items-center justify-center min-w-[132px] px-4 py-2"
+        >
+          <PlusIcon className="h-5 w-5" />
+        </GradientButton>
       </div>
-      <SortableContext id="backlog-tasks" items={tasks} strategy={verticalListSortingStrategy}>
+      <SortableContext id="backlog-tasks" items={tasks.map(t => `backlog-${t.id}`)} strategy={verticalListSortingStrategy}>
         <ul className="space-y-2">
           {tasks.map((task) => (
             <SortableItem key={`backlog-${task.id}`} id={`backlog-${task.id}`}>
@@ -55,7 +55,7 @@ function Backlog({ tasks, onAddTask }) {
 }
 
 function SortableItem(props) {
-  const {attributes, listeners, setNodeRef, transform} = useSortable({id: props.id});
+  const { attributes, listeners, setNodeRef, transform } = useSortable({ id: props.id });
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
   } : undefined;

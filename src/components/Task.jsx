@@ -1,5 +1,7 @@
 import React, { useReducer, useEffect, useRef, useState } from 'react';
 import { PlayIcon, PauseIcon, ArrowPathIcon, CheckIcon, CircleStackIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import Modal from './Modal';
 import alarmSound from '../assets/alarm.mp3';
 
@@ -9,6 +11,21 @@ function Task({ task, onTaskUpdate }) {
   const [endTime, setEndTime] = useState(null);
   const [initialTime, setInitialTime] = useState(task.timer?.remainingTime || 1500);
   const [remainingTime, setRemainingTime] = useState(task.timer?.remainingTime || 1500);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: `pomodoro-${task.id}` });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
 
   useEffect(() => {
     let interval;
@@ -77,7 +94,13 @@ function Task({ task, onTaskUpdate }) {
 
   return (
     <>
-      <div className="group bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className="group bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
+      >
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 flex-1">
             {isRunning && (
@@ -91,28 +114,31 @@ function Task({ task, onTaskUpdate }) {
             {task.status === 'completed' && (
               <CheckIcon className="h-5 w-5 text-green-500" />
             )}
-            <span className={`text-sm sm:text-base flex-1 ${
-              task.status === 'completed' ? 'line-through text-green-600' : 'text-gray-700'
-            }`}>
+            <span className={`text-sm sm:text-base flex-1 ${task.status === 'completed' ? 'line-through text-green-600' : 'text-gray-700'
+              }`}>
               {task.text}
             </span>
           </div>
-          
+
           <div className="flex items-center gap-4">
             {task.status === 'completed' && (
               <button
-                onClick={() => onTaskUpdate(task.id, 'delete')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTaskUpdate(task.id, 'delete');
+                }}
                 className="p-1 text-red-500 hover:text-red-700 transition-colors"
+                onPointerDown={(e) => e.stopPropagation()}
               >
                 <XMarkIcon className="h-5 w-5" />
               </button>
             )}
-            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full">
+            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full" onPointerDown={(e) => e.stopPropagation()}>
               <span className="text-sm font-medium text-gray-700">
                 {formatTime(remainingTime)}
               </span>
               <div className="flex gap-1">
-                <button 
+                <button
                   onClick={() => {
                     if (isRunning) {
                       stopTimer();
@@ -128,7 +154,7 @@ function Task({ task, onTaskUpdate }) {
                     <PlayIcon className="h-5 w-5" />
                   )}
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     setInitialTime(task.timer?.initialTime || 1500);
                     resetTimer();

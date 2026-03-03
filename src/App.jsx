@@ -6,7 +6,8 @@ import Backlog from './components/Backlog';
 import { PlusIcon } from '@heroicons/react/24/solid';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import Droppable from './components/Droppable';
-import { arrayMove } from '@dnd-kit/sortable';
+import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { supabase } from './lib/supabase';
 
 function App() {
   const [tasks, setTasks] = useState([]);
@@ -14,149 +15,181 @@ function App() {
   const [backlogTasks, setBacklogTasks] = useState([]);
   const [activeId, setActiveId] = useState(null);
 
-  useEffect(() => {
-    try {
-      const storedTasks = localStorage.getItem('tasks');
-      if (storedTasks) {
-        setTasks(JSON.parse(storedTasks));
-      }
-    } catch (error) {
-      console.error('Failed to load tasks from localStorage:', error);
+  const fetchTasks = async () => {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching tasks:', error);
+    } else if (data) {
+      setTasks(data.filter(t => t.type === 'pomodoro'));
+      setBacklogTasks(data.filter(t => t.type === 'backlog'));
     }
+  };
+
+  // Initial fetch and real-time subscription
+  useEffect(() => {
+    fetchTasks();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        (payload) => {
+          console.log('Syncing: change received from Supabase', payload);
+          fetchTasks();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Supabase Subscription Status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('tasks', JSON.stringify(tasks));
-    } catch (error) {
-      console.error('Failed to save tasks to localStorage:', error);
-    }
-  }, [tasks]);
-
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     if (newTaskText.trim()) {
+      console.log('Attempting to add task:', newTaskText);
       const newTask = {
-        id: Date.now(),
         text: newTaskText,
         status: 'pending',
+        type: 'pomodoro',
+        timer: {
+          initialTime: 1500,
+          remainingTime: 1500,
+          isRunning: false
+        }
       };
-      setTasks([...tasks, newTask]);
+
+      const { data, error } = await supabase.from('tasks').insert([newTask]).select();
+      if (error) {
+        console.error('Error adding task:', error);
+        alert(`Failed to add task: ${error.message}`);
+      } else {
+        console.log('Task added successfully:', data);
+        fetchTasks(); // Trigger manual refetch for immediate feedback
+      }
       setNewTaskText('');
     }
   };
 
-  const handleTaskUpdate = (taskId, newStatus) => {
+  const handleTaskUpdate = async (taskId, newStatus) => {
+    console.log(`Updating task ${taskId} to status: ${newStatus}`);
     if (newStatus === 'delete') {
-      setTasks(tasks.filter(task => task.id !== taskId));
+      const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+      if (error) {
+        console.error('Error deleting task:', error);
+      } else {
+        fetchTasks();
+      }
     } else {
-      const updatedTasks = tasks.map((task) => {
-        if (task.id === taskId) {
-          const updatedTask = { ...task, status: newStatus };
-          if (newStatus === 'incomplete') {
-            updatedTask.timer = {
-              ...task.timer,
-              remainingTime: task.timer.initialTime,
-              isRunning: false
-            };
-          }
-          return updatedTask;
-        }
-        return task;
-      });
-      setTasks(updatedTasks);
+      const taskToUpdate = tasks.find(t => t.id === taskId);
+      if (!taskToUpdate) return;
+
+      const updates = { status: newStatus };
+      if (newStatus === 'incomplete') {
+        updates.timer = {
+          ...taskToUpdate.timer,
+          remainingTime: taskToUpdate.timer.initialTime,
+          isRunning: false
+        };
+      }
+
+      const { error } = await supabase.from('tasks').update(updates).eq('id', taskId);
+      if (error) {
+        console.error('Error updating task:', error);
+      } else {
+        fetchTasks();
+      }
     }
   };
 
-  const createPomodoroTaskFromBacklog = (movedItem) => ({
-    ...movedItem,
-    status: 'pending',
-    id: Date.now(),
-    timer: {
-      initialTime: 1500,
-      remainingTime: 1500,
-      isRunning: false
+  const handleAddBacklogTask = async (text) => {
+    console.log('Adding backlog task:', text);
+    const newTask = {
+      text: text,
+      type: 'backlog',
+      status: 'pending'
+    };
+    const { error } = await supabase.from('tasks').insert([newTask]);
+    if (error) {
+      console.error('Error adding backlog task:', error);
+      alert(`Failed to add backlog task: ${error.message}`);
+    } else {
+      fetchTasks();
     }
-  });
-
-  const reorderTasks = (items, activeId, overId) => {
-    const oldIndex = items.findIndex(task => task.id === activeId);
-    const newIndex = items.findIndex(task => task.id === overId);
-    return arrayMove(items, oldIndex, newIndex);
   };
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = async (event) => {
     const { active, over } = event;
     setActiveId(null);
 
-    const activeId = active.id.toString();
-    const overId = over?.id?.toString();
+    const activeIdStr = active.id.toString();
+    const overIdStr = over?.id?.toString();
+
+    // Extract database IDs from draggable IDs (e.g., "backlog-uuid" -> "uuid")
+    const getDbId = (id) => id.substring(id.indexOf('-') + 1);
 
     // Handle moving from backlog to pomodoro
-    if (activeId.startsWith('backlog-') && (!over || overId === 'pomodoro')) {
-      const backlogItemIndex = backlogTasks.findIndex(task => `backlog-${task.id}` === activeId);
-      if (backlogItemIndex !== -1) {
-        const movedItem = backlogTasks[backlogItemIndex];
-        const newBacklogTasks = backlogTasks.filter((_, index) => index !== backlogItemIndex);
-        const newTask = createPomodoroTaskFromBacklog(movedItem);
-        setTasks([...tasks, newTask]);
-        setBacklogTasks(newBacklogTasks);
+    if (activeIdStr.startsWith('backlog-') && (!over || overIdStr === 'pomodoro')) {
+      const dbId = getDbId(activeIdStr);
+      console.log(`Dragging from backlog to pomodoro: ID ${dbId}`);
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          type: 'pomodoro',
+          timer: { initialTime: 1500, remainingTime: 1500, isRunning: false }
+        })
+        .eq('id', dbId);
+      if (error) {
+        console.error('Error moving task to pomodoro:', error);
+      } else {
+        fetchTasks();
       }
       return;
     }
 
-    if (!over || active.id === over.id || !overId) {
+    if (!over || active.id === over.id || !overIdStr) {
       return;
     }
 
-    // Handle reordering within backlog
-    if (activeId.startsWith('backlog-') && overId.startsWith('backlog-')) {
-      setBacklogTasks(reorderTasks(backlogTasks, activeId, overId));
-      return;
-    }
-
-    // Handle reordering within pomodoro
-    if (activeId.startsWith('pomodoro-') && overId.startsWith('pomodoro-')) {
-      setTasks(reorderTasks(tasks, activeId, overId));
-      return;
-    }
-
-    // Handle moving from backlog to specific pomodoro task
-    if (activeId.startsWith('backlog-') && overId.startsWith('pomodoro-')) {
-      const backlogItemIndex = backlogTasks.findIndex(task => `backlog-${task.id}` === activeId);
-      if (backlogItemIndex !== -1) {
-        const movedItem = backlogTasks[backlogItemIndex];
-        const newBacklogTasks = backlogTasks.filter((_, index) => index !== backlogItemIndex);
-        const newTask = createPomodoroTaskFromBacklog(movedItem);
-        
-        // Find the target position in pomodoro list
-        const targetIndex = tasks.findIndex(task => `pomodoro-${task.id}` === overId);
-        const newTasks = [...tasks];
-        newTasks.splice(targetIndex, 0, newTask);
-        
-        setTasks(newTasks);
-        setBacklogTasks(newBacklogTasks);
+    // Handle moving from backlog to specific pomodoro task (as a target)
+    if (activeIdStr.startsWith('backlog-') && overIdStr.startsWith('pomodoro-')) {
+      const dbId = getDbId(activeIdStr);
+      console.log(`Dragging from backlog to pomodoro (target): ID ${dbId}`);
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          type: 'pomodoro',
+          timer: { initialTime: 1500, remainingTime: 1500, isRunning: false }
+        })
+        .eq('id', dbId);
+      if (error) {
+        console.error('Error moving task to pomodoro:', error);
+      } else {
+        fetchTasks();
       }
       return;
     }
 
     // Handle moving from pomodoro to backlog
-    if (activeId.startsWith('pomodoro-') && overId.startsWith('backlog-')) {
-      const pomodoroItemIndex = tasks.findIndex(task => `pomodoro-${task.id}` === activeId);
-      if (pomodoroItemIndex !== -1) {
-        const movedItem = tasks[pomodoroItemIndex];
-        const newTasks = tasks.filter((_, index) => index !== pomodoroItemIndex);
-        
-        // Find the target position in backlog
-        const backlogItemIndex = backlogTasks.findIndex(task => `backlog-${task.id}` === overId);
-        const newBacklogTasks = [...backlogTasks];
-        newBacklogTasks.splice(backlogItemIndex, 0, { 
-          ...movedItem, 
-          id: Date.now(),
-          status: 'backlog'
-        });
-        
-        setBacklogTasks(newBacklogTasks);
-        setTasks(newTasks);
+    if (activeIdStr.startsWith('pomodoro-') && overIdStr.startsWith('backlog-')) {
+      const dbId = getDbId(activeIdStr);
+      console.log(`Dragging from pomodoro to backlog: ID ${dbId}`);
+      const { error } = await supabase
+        .from('tasks')
+        .update({ type: 'backlog' })
+        .eq('id', dbId);
+      if (error) {
+        console.error('Error moving task to backlog:', error);
+      } else {
+        fetchTasks();
       }
       return;
     }
@@ -167,8 +200,8 @@ function App() {
   }
 
   return (
-    <DndContext 
-      onDragEnd={handleDragEnd} 
+    <DndContext
+      onDragEnd={handleDragEnd}
       onDragStart={handleDragStart}
       collisionDetection={closestCenter}
     >
@@ -176,18 +209,12 @@ function App() {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg2:flex-row gap-4 lg2:gap-8">
             <div className="w-full lg2:w-1/2 bg-white rounded-xl shadow-lg p-4 lg2:p-6">
-              <Backlog 
+              <Backlog
                 tasks={backlogTasks}
-                onAddTask={(text) => {
-                  const newTask = {
-                    id: Date.now(),
-                    text: text,
-                  };
-                  setBacklogTasks([...backlogTasks, newTask]);
-                }}
+                onAddTask={handleAddBacklogTask}
               />
             </div>
-            
+
             <div className="w-full lg2:w-1/2 bg-white rounded-xl shadow-lg p-4 lg2:p-6 mt-4 lg2:mt-0">
               <Droppable id="pomodoro">
                 <div>
@@ -205,18 +232,18 @@ function App() {
                       value={newTaskText}
                       onChange={(e) => setNewTaskText(e.target.value)}
                     />
-                    <GradientButton 
+                    <GradientButton
                       onClick={handleAddTask}
                       className="flex items-center justify-center px-3 sm:px-4 py-2 mt-2 sm:mt-0"
                     >
                       <PlusIcon className="h-5 w-5" />
                     </GradientButton>
                   </div>
-                  <div className="space-y-2">
+                  <SortableContext id="pomodoro-tasks" items={tasks.map(t => `pomodoro-${t.id}`)} strategy={verticalListSortingStrategy}>
                     {tasks.map((task) => (
                       <Task key={task.id} task={task} onTaskUpdate={handleTaskUpdate} />
                     ))}
-                  </div>
+                  </SortableContext>
                 </div>
               </Droppable>
             </div>
@@ -226,7 +253,7 @@ function App() {
           {activeId ? (
             <div className="bg-white p-4 rounded-lg shadow-lg">
               {tasks.find(t => `pomodoro-${t.id}` === activeId)?.text ||
-               backlogTasks.find(t => `backlog-${t.id}` === activeId)?.text}
+                backlogTasks.find(t => `backlog-${t.id}` === activeId)?.text}
             </div>
           ) : null}
         </DragOverlay>
