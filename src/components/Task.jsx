@@ -8,7 +8,7 @@ import alarmSound from '../assets/alarm.mp3';
 function Task({ task, onTaskUpdate, onTimerUpdate }) {
   const [showModal, setShowModal] = useState(false);
   const [isRunning, setIsRunning] = useState(task.timer?.isRunning || false);
-  const [endTime, setEndTime] = useState(null);
+  const [endTime, setEndTime] = useState(task.timer?.isRunning ? Date.now() + (task.timer?.remainingTime || 1500) * 1000 : null);
   const [initialTime, setInitialTime] = useState(task.timer?.initialTime || 1500);
   const [remainingTime, setRemainingTime] = useState(task.timer?.remainingTime || 1500);
 
@@ -26,6 +26,8 @@ function Task({ task, onTaskUpdate, onTimerUpdate }) {
 
         if (task.timer.isRunning) {
           setEndTime(Date.now() + task.timer.remainingTime * 1000);
+        } else {
+          setEndTime(null);
         }
       }
     }
